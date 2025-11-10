@@ -1,0 +1,35 @@
+# CDK
+cdk.out/
+.cdk.staging/
+*.js
+!jest.config.js
+*.d.ts
+dist/
+node_modules/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# AWS
+.aws-sam/
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Build artifacts
+*.tsbuildinfo
+

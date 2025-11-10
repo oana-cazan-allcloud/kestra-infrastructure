@@ -1,0 +1,184 @@
+# services:
+#   postgres:
+#     image: postgres:17
+#     container_name: kestra-postgres
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_DB: kestra
+#       POSTGRES_USER: kestra
+#       POSTGRES_PASSWORD: k3str4
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 10
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+
+#   kestra:
+#     image: kestra/kestra:latest
+#     container_name: kestra
+#     restart: unless-stopped
+#     user: "root"
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#     command: server standalone
+#     ports:
+#       - "8080:8080"
+#     volumes:
+#       - kestra-data:/app/storage
+#       - kestra-flows:/app/flows
+#       - /tmp/kestra-wd:/tmp/kestra-wd
+#       - /var/run/docker.sock:/var/run/docker.sock
+#     environment:
+#       KESTRA_CONFIGURATION: |
+#         datasources:
+#           postgres:
+#             url: jdbc:postgresql://postgres:5432/kestra
+#             driverClassName: org.postgresql.Driver
+#             username: kestra
+#             password: k3str4
+
+#         kestra:
+#           url: http://localhost:8080/
+#           server:
+#             port: 8080
+#             basic-auth:
+#               enabled: true
+#               username: oana.iacob@allcloud.io
+#               password: Portocal@2
+
+#           repository:
+#             type: postgres
+#             postgres:
+#               datasource: postgres
+#           queue:
+#             type: postgres
+#           storage:
+#             type: local
+#             local:
+#               basePath: /app/storage
+#           tasks:
+#             tmpDir:
+#               path: /tmp/kestra-wd/tmp
+
+#           git:
+#             flows:
+#               enabled: true
+#               type: git
+#               uri: https://github.com/oana-cazan-allcloud/cargo-partners.git
+#               branch: main
+#               path: /app/flows
+#               pollInterval: 30s
+#               autoPush: true
+
+# volumes:
+#   postgres-data:
+#   kestra-data:
+#   kestra-flows:
+
+volumes:
+  postgres-data:
+    driver: local
+  kestra-flows:
+    driver: local
+  kestra-data:
+    driver: local
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      POSTGRES_DB: kestra
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: k3str4
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  git-sync:
+    image: registry.k8s.io/git-sync/git-sync:v4.5.0
+    container_name: git-sync
+    user: "root"
+    command:
+      - --repo=https://github.com/oana-cazan-allcloud/cargo-partners.git
+      - --root=/git
+      - --dest=cargo-partners
+      - --period=5s
+      - --ref=main
+      - --depth=1
+      - --sync-timeout=120s
+      - --submodules=off
+      # - --verbose=true   # (optional for debugging)
+    volumes:
+      - kestra-flows:/git
+      # - ~/.ssh:/root/.ssh:ro  # Uncomment if you need SSH key auth for private repos
+    restart: unless-stopped
+
+  kestra:
+    image: kestra/kestra:latest
+    container_name: kestra
+    pull_policy: always
+    user: "root"
+    command: server standalone
+    depends_on:
+      postgres:
+        condition: service_healthy
+      git-sync:
+        condition: service_started
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: k3str4
+
+        kestra:
+          multiTenant:
+            enabled: false
+          server:
+            basic-auth:
+              enabled: true
+              username: oana.iacob@allcloud.io
+              password: Portocal@2
+          repository:
+            type: postgres
+            postgres:
+              datasource: postgres
+          storage:
+            type: local
+            local:
+              basePath: "/app/storage"
+          queue:
+            type: postgres
+          tasks:
+            tmpDir:
+              path: /tmp/kestra-wd/tmp
+          url: http://localhost:8080/
+
+        micronaut:
+          io:
+            watch:
+              enabled: true
+              watchType: POLLING
+              watchInterval: 5s
+              paths:
+                - /docker_folder/cargo-partners/flows
+
+    volumes:
+      - kestra-flows:/docker_folder
+      - kestra-data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/kestra-wd:/tmp/kestra-wd
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

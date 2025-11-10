@@ -1,0 +1,94 @@
+# volumes:
+#   postgres-data:
+#     driver: local
+#   kestra-flows:
+#     driver: local
+#   kestra-data:
+#     driver: local
+# services:
+#   postgres:
+#     image: postgres:17
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+#     environment:
+#       POSTGRES_DB: kestra
+#       POSTGRES_USER: kestra
+#       POSTGRES_PASSWORD: k3str4
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 10
+#   git-sync:
+#     image: registry.k8s.io/git-sync/git-sync:v4.5.0
+#     user: "root"
+#     command:
+#       - --repo=${GITSYNC_REPO}
+#       - --root=${GITSYNC_ROOT}
+#       - --dest=${GITSYNC_DEST}
+#       - --period=${GITSYNC_PERIOD}
+#       - --ref=${GITSYNC_REF}
+#       - --depth=${GITSYNC_DEPTH}
+#       # - --verbose=${GITSYNC_VERBOSE}
+
+#       # Optional parameters to configure the git-sync behavior (default values are used if not specified)     
+#       - --sync-timeout=${GITSYNC_SYNC_TIMEOUT}
+#       - --submodules=${GITSYNC_SUBMODULES}
+#     volumes:
+#       - kestra-flows:/git/flows
+#       # - ~/.ssh:/root/.ssh:ro
+#     restart: unless-stopped
+    
+#   kestra:
+#     image: kestra/kestra:latest
+#     pull_policy: always
+#     user: "root"
+#     command: server standalone
+#     volumes:
+#       - kestra-flows:/docker_folder
+#       - kestra-data:/app/storage
+#       - /var/run/docker.sock:/var/run/docker.sock
+#       - /tmp/kestra-wd:/tmp/kestra-wd
+#     environment:
+#       KESTRA_CONFIGURATION: |
+#         datasources:
+#           postgres:
+#             url: jdbc:postgresql://postgres:5432/kestra
+#             driverClassName: org.postgresql.Driver
+#             username: kestra
+#             password: k3str4
+#         kestra:
+#           server:
+#             basic-auth:
+#               enabled: true
+#               username: oana.iacob@allcloud.io
+#               password: Portocal@2
+#           repository:
+#             type: postgres
+#             postgres:
+#               datasource: postgres
+#           storage:
+#             type: local
+#             local:
+#               basePath: "/app/storage"
+#           queue:
+#             type: postgres
+#           tasks:
+#             tmpDir:
+#               path: /tmp/kestra-wd/tmp
+#           url: http://localhost:8080/
+#         micronaut:
+#           io:
+#             watch:
+#               enabled: true
+#               watchType: POLLING
+#               watchInterval: 5s
+#               paths:
+#                 /docker_folder/example/flows/main
+#     ports:
+#       - "8080:8080"
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#       git-sync:
+#         condition: service_started
