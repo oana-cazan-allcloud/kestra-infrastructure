@@ -1,13 +1,29 @@
+# TypeScript compiled output
 *.js
 !jest.config.js
 *.d.ts
-node_modules
-
-# CDK asset staging directory
-.cdk.staging
-cdk.out
-
-# TypeScript build output
 dist/
-*.js
-*.d.ts
+
+# Dependencies
+node_modules/
+
+# CDK
+.cdk.staging/
+cdk.out/
+
+# Build artifacts
+*.tsbuildinfo
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/

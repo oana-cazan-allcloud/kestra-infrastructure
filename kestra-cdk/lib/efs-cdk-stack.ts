@@ -94,9 +94,10 @@ export class EfsStack extends Stack {
       // Format: kestra-efs-{account-last-4}-{region}
       const accountSuffix = this.account.slice(-4); // Last 4 digits of account
       const regionShort = this.region.replace('-', ''); // Remove hyphens from region
-      const vault = new backup.BackupVault(this, 'KestraEfsBackupVault', {
-        backupVaultName: `kestra-efs-${accountSuffix}-${regionShort}`,
-      });
+      const vaultName = `kestra-efs-${accountSuffix}-${regionShort}`;
+      
+      // Import existing backup vault (it already exists from a previous deployment)
+      const vault = backup.BackupVault.fromBackupVaultName(this, 'KestraEfsBackupVault', vaultName);
   
       const plan = new backup.BackupPlan(this, 'KestraEfsBackupPlan', {
         backupPlanName: `KestraEfsDailyBackupPlan-${this.account}-${this.region}`,
