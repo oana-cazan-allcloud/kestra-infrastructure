@@ -10,6 +10,7 @@ import { EcsAlbStack } from '../lib/ecs-service-alb-stack';
 import { EcsServiceStack } from '../lib/ecs-service-cdk-stack';
 import { WafStack } from '../lib/waf-cdk-stack';
 import { BackupStack } from '../lib/backup-cdk-stack';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 const app = new cdk.App();
 
 
@@ -103,6 +104,19 @@ const backupStack = new BackupStack(app, 'KestraBackupStack', {
 });
 backupStack.addDependency(efsStack);
 
+
+
+const issueLambda = new lambda.Function(app, 'IssueCreatedHandler', {
+  runtime: lambda.Runtime.NODEJS_20_X,
+  handler: 'index.handler',
+  code: lambda.Code.fromAsset('lambda/issue-created'),
+});
+
+const commentLambda = new lambda.Function(app, 'CommentCreatedHandler', {
+  runtime: lambda.Runtime.NODEJS_20_X,
+  handler: 'index.handler',
+  code: lambda.Code.fromAsset('lambda/comment-created'),
+});
 
 cdk.Tags.of(app).add('Project', 'Kestra');
 cdk.Tags.of(app).add('Environment', 'Production'); // or 'Development'

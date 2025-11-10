@@ -1,4 +1,5 @@
-import handler from '../index';
+import { handler } from '../index';
+import { describe, it, expect } from '@jest/globals';
 
 describe('IssueCreated Lambda', () => {
   it('returns success payload and logs input', async () => {

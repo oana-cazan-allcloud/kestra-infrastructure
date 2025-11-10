@@ -235,9 +235,41 @@ readonly s3Bucket: s3.Bucket;
   // We can organize it later if needed
 
   // -------------------------------------------------------------------------
-  // 🧩 Container 2: Git-Sync (atomic updates)
+  // 🧩 Container 2: Git-Sync (atomic updates) - Using SSH
   // -------------------------------------------------------------------------
   const gitSecret = secretsmanager.Secret.fromSecretNameV2(this, 'GitSyncSecret', 'kestra/git');
+
+  // Init container to set up SSH keys from Secrets Manager
+  // SSH keys are written to EFS subdirectory for git-sync to use
+  const sshInitContainer = this.taskDefinition.addContainer('SshInit', {
+    image: ecs.ContainerImage.fromRegistry('alpine:3.18'),
+    essential: false,
+    cpu: 64,
+    memoryReservationMiB: 64,
+    logging: logDriver,
+    entryPoint: ['/bin/sh', '-c'],
+    command: [
+      `
+      mkdir -p /etc/git-secret
+      echo "$${SSH_PRIVATE_KEY}" > /etc/git-secret/ssh
+      echo "$${SSH_KNOWN_HOSTS}" > /etc/git-secret/known_hosts
+      chmod 600 /etc/git-secret/ssh
+      chmod 644 /etc/git-secret/known_hosts
+      echo "SSH keys initialized"
+      `,
+    ],
+    secrets: {
+      SSH_PRIVATE_KEY: ecs.Secret.fromSecretsManager(gitSecret, 'SSH_PRIVATE_KEY'),
+      SSH_KNOWN_HOSTS: ecs.Secret.fromSecretsManager(gitSecret, 'SSH_KNOWN_HOSTS'),
+    },
+  });
+
+  // Mount SSH keys directory as shared volume
+  sshInitContainer.addMountPoints({
+    containerPath: '/etc/git-secret',
+    sourceVolume: 'efs-shared',
+    readOnly: false,
+  });
 
   const gitSyncContainer = this.taskDefinition.addContainer('GitSync', {
     image: ecs.ContainerImage.fromRegistry('registry.k8s.io/git-sync/git-sync:v4.4.2'),
@@ -247,18 +279,21 @@ readonly s3Bucket: s3.Bucket;
     logging: logDriver,
     user: 'root', // ✅ Match Docker Compose: user: "root"
     environment: {
-      GITSYNC_REPO: 'https://github.com/oana-cazan-allcloud/cargo-partners.git',
-      GITSYNC_BRANCH: 'main',
+      // ✅ Changed to SSH URL to match Docker Compose
+      GITSYNC_REPO: 'git@github.com:oana-cazan-allcloud/cargo-partners.git',
+      // ✅ Changed GITSYNC_BRANCH to GITSYNC_REF to match Docker Compose
+      GITSYNC_REF: 'main',
       GITSYNC_ROOT: '/git',
       GITSYNC_LINK: 'repo', // ✅ Match Docker Compose: GITSYNC_LINK: repo
       GITSYNC_WAIT: '60',
       GITSYNC_PERIOD: '10s', // ✅ Match Docker Compose: GITSYNC_PERIOD: 10s
       GITSYNC_ONE_TIME: 'false',
       GITSYNC_MAX_FAILURES: '-1', // ✅ Match Docker Compose: GITSYNC_MAX_FAILURES: -1
-    },
-    secrets: {
-      GITSYNC_USERNAME: ecs.Secret.fromSecretsManager(gitSecret, 'GIT_SYNC_USERNAME'),
-      GITSYNC_PASSWORD: ecs.Secret.fromSecretsManager(gitSecret, 'GIT_SYNC_PASSWORD'),
+      // ✅ SSH Configuration to match Docker Compose
+      GITSYNC_SSH_KEY_FILE: '/etc/git-secret/ssh',
+      GITSYNC_SSH_KNOWN_HOSTS: 'true',
+      GITSYNC_SSH_KNOWN_HOSTS_FILE: '/etc/git-secret/known_hosts',
+      GITSYNC_ADD_USER: 'true',
     },
     healthCheck: {
       command: ['CMD-SHELL', '[ -d /git/.git ] || exit 1'],
@@ -268,6 +303,26 @@ readonly s3Bucket: s3.Bucket;
       timeout: Duration.seconds(5),
     },
   });
+
+  // Git-Sync depends on SSH init container
+  gitSyncContainer.addContainerDependencies({
+    container: sshInitContainer,
+    condition: ecs.ContainerDependencyCondition.SUCCESS,
+  });
+
+  // Mount SSH keys directory (shared from init container via EFS)
+  gitSyncContainer.addMountPoints(
+    {
+      containerPath: '/git',
+      sourceVolume: 'efs-shared',
+      readOnly: false,
+    },
+    {
+      containerPath: '/etc/git-secret',
+      sourceVolume: 'efs-shared',
+      readOnly: true, // Read-only for git-sync
+    }
+  );
 
   // Wait for init container to create directories before starting GitSync
   // REMOVED: No longer needed with Access Points
