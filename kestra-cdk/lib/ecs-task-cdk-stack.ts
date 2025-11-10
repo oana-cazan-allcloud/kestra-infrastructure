@@ -249,14 +249,14 @@ readonly s3Bucket: s3.Bucket;
     logging: logDriver,
     entryPoint: ['/bin/sh', '-c'],
     command: [
-      `
-      mkdir -p /etc/git-secret
-      echo "$${SSH_PRIVATE_KEY}" > /etc/git-secret/ssh
-      echo "$${SSH_KNOWN_HOSTS}" > /etc/git-secret/known_hosts
-      chmod 600 /etc/git-secret/ssh
-      chmod 644 /etc/git-secret/known_hosts
-      echo "SSH keys initialized"
-      `,
+      [
+        'mkdir -p /etc/git-secret',
+        'echo "$SSH_PRIVATE_KEY" > /etc/git-secret/ssh',
+        'echo "$SSH_KNOWN_HOSTS" > /etc/git-secret/known_hosts',
+        'chmod 600 /etc/git-secret/ssh',
+        'chmod 644 /etc/git-secret/known_hosts',
+        'echo "SSH keys initialized"',
+      ].join(' && '),
     ],
     secrets: {
       SSH_PRIVATE_KEY: ecs.Secret.fromSecretsManager(gitSecret, 'SSH_PRIVATE_KEY'),

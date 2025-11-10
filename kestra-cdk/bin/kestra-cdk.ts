@@ -106,17 +106,18 @@ backupStack.addDependency(efsStack);
 
 
 
-const issueLambda = new lambda.Function(app, 'IssueCreatedHandler', {
-  runtime: lambda.Runtime.NODEJS_20_X,
-  handler: 'index.handler',
-  code: lambda.Code.fromAsset('lambda/issue-created'),
-});
+// TODO: Create a Lambda stack for these functions
+// const issueLambda = new lambda.Function(app, 'IssueCreatedHandler', {
+//   runtime: lambda.Runtime.NODEJS_20_X,
+//   handler: 'index.handler',
+//   code: lambda.Code.fromAsset('lambda/issue-created'),
+// });
 
-const commentLambda = new lambda.Function(app, 'CommentCreatedHandler', {
-  runtime: lambda.Runtime.NODEJS_20_X,
-  handler: 'index.handler',
-  code: lambda.Code.fromAsset('lambda/comment-created'),
-});
+// const commentLambda = new lambda.Function(app, 'CommentCreatedHandler', {
+//   runtime: lambda.Runtime.NODEJS_20_X,
+//   handler: 'index.handler',
+//   code: lambda.Code.fromAsset('lambda/comment-created'),
+// });
 
 cdk.Tags.of(app).add('Project', 'Kestra');
 cdk.Tags.of(app).add('Environment', 'Production'); // or 'Development'
