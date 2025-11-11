@@ -1,4 +1,3 @@
-
 volumes:
   postgres-data:
     driver: local
@@ -43,10 +42,10 @@ services:
             username: kestra
             password: k3str4
         kestra:
-          # server:
-          #   basicAuth:
-          #     username: admin@kestra.io # it must be a valid email address
-          #     password: Admin1234 # it must be at least 8 characters long with uppercase letter and a number
+          server:
+            basicAuth:
+              username: ${KESTRA_BASIC_AUTH_USERNAME} # it must be a valid email address
+              password: ${KESTRA_BASIC_AUTH_PASSWORD} # it must be at least 8 characters long with uppercase letter and a number
           repository:
             type: postgres
           storage:
@@ -64,7 +63,7 @@ services:
             watch:
               enabled: true
               paths:
-                - /repo/examples/flows
+                - /repo/_flows
     ports:
       - "8080:8080"
       - "8081:8081"
@@ -81,7 +80,7 @@ services:
     environment:
       GITSYNC_REPO: git@github.com:oana-cazan-allcloud/cargo-partners.git
       GITSYNC_ROOT: /git
-      GITSYNC_LINK: repo
+      GITSYNC_LINK: cargo-partners
       GITSYNC_PERIOD: 10s
       GITSYNC_REF: main
       GITSYNC_ONE_TIME: "false"
@@ -92,7 +91,7 @@ services:
       GITSYNC_ADD_USER: "true"
     volumes:
       - git-flows:/git
-      - ~/.ssh/id_rsa:/etc/git-secret/ssh:ro
+      - ~/.ssh/id_ed25519:/etc/git-secret/ssh:ro
       - ~/.ssh/known_hosts:/etc/git-secret/known_hosts:ro
 
   repo-syncer:
@@ -105,24 +104,24 @@ services:
         echo 'Repo syncer started (inotify mode)...'
         
         # Initial sync
-        if [ -d /git/repo ]; then
+        if [ -d /git/cargo-partners/_flows ]; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Initial sync..."
-          rsync -a --delete --exclude='.git' --exclude='.gitignore' /git/repo/ /repo/
+          rsync -a --delete --exclude='.git' --exclude='.gitignore' /git/cargo-partners/_flows/ /repo/_flows/
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Initial sync complete"
         fi
         
         # Watch for changes and sync only when needed
         while true; do
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')] Watching for changes in /git/repo..."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] Watching for changes in /git/cargo-partners/_flows..."
           
           # inotifywait blocks until a change occurs (efficient!)
-          inotifywait -r -e modify,create,delete,move /git/repo 2>/dev/null
+          inotifywait -r -e modify,create,delete,move /git/cargo-partners 2>/dev/null
           
           # Give git-sync a moment to finish writing (debounce)
           sleep 2
           
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Change detected, syncing..."
-          rsync -a --delete --exclude='.git' --exclude='.gitignore' /git/repo/ /repo/
+          rsync -a --delete --exclude='.git' --exclude='.gitignore' /git/cargo-partners/_flows/ /repo/_flows/
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sync complete"
         done
     volumes:
